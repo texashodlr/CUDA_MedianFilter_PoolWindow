@@ -1188,3 +1188,27 @@ void medianFilter_gpu4(uint8_t* inPixels, uint8_t* outPixels,
 		std::cout << "\n ";
 	}
 	std::cout << "]... \n";
+
+	//Modified CPU version//
+		//Printing the matrix for validation//
+	std::cout << "Printing CPU Output Matrix!\n";
+	std::cout << "Matrix Begin: \n[ ";
+	for (uint32_t r = 0; r < outShape.height; ++r) {
+		for (uint32_t c = 0; c < outShape.width; ++c) {
+			float tmp_cpu = h_outMatrix_cpu[r * outShape.width + c];
+			std::cout << tmp_cpu << ", ";
+		}
+		std::cout << "\n ";
+	}
+	std::cout << "]... \n\n";
+
+	std::cout << "Printing GPU Output Matrix!\n";
+	std::cout << "Matrix Begin: \n[ ";
+	for (uint32_t r = 0; r < outShape.height; ++r) {
+		for (uint32_t c = 0; c < outShape.width; ++c) {
+			float tmp_gpu = h_outMatrix[r * outShape.width + c];
+			std::cout << tmp_gpu << ", ";
+		}
+		std::cout << "\n ";
+	}
+	std::cout << "]... \n";

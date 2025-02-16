@@ -68,42 +68,38 @@ int main(int argc, char** argv) {
 
 		case 5:
 			std::cout << "Running BytesImage File Test on CPU! \n\n";
-			testLoadBytesImage("./resources/file2.jpg.bytes");
+			testLoadBytesImage("./resources/lena512color.tiff.bytes");
 			std::cout << "\n\n ... Done!\n";
 			break;
 
 		case 6:
 			std::cout << "Running Median Filter on CPU! \n\n";
-			filArgs = {4, 4};
-			runCpuMedianFilter("./resources/file2.jpg.bytes", 
-				"./resources/file2_fil.bytes", filArgs);
+			filArgs = { 4, 4 };
+			runCpuMedianFilter("./resources/lena512color.tiff.bytes",
+				"./resources/lena512color_fil.bytes", filArgs);
 			std::cout << "\n\n ... Done!\n";
-			break;
 
 		case 7:
 			std::cout << "Running Median Filter on GPU! \n\n";
-			filArgs = {24, 24};
-			runGpuMedianFilter("./resources/file2.jpg.bytes",
-				"./resources/file2_filtered.bytes", filArgs);
+			filArgs = { 4, 4 };
+			runGpuMedianFilter("./resources/lena512color.tiff.bytes",
+				"./resources/lena512color_fil.bytes", filArgs);
 			std::cout << "\n\n ... Done!\n";
 			break;
 			
 		case 8:
 			std::cout << "Running Pool CPU! \n\n";
-			inShape = {32, 32};
-			poolArgs = {PoolOp::MaxPool, 4, 4, 1, 1};
-			//inShape = { 10, 10 };
-			//poolArgs = {PoolOp::MaxPool, 3, 3, 1, 1};
+			inShape = { 32, 32 };
+			poolArgs = { PoolOp::MaxPool, 4, 4, 1, 1 };
 			runCpuPool(inShape, poolArgs);
 			std::cout << "\n\n ... Done!\n";
 			break;
 			
 		case 9:
-			std::cout << "Call Pool GPU, you must! \n\n";
-			inShape = { 8, 8 };
-			poolArgs = { PoolOp::MaxPool, 4, 4, 1, 1 };
 			std::cout << "Running Pool GPU! \n\n";
 			//	STUDENT: Call runGpuPool here
+			inShape = { 32, 32 };
+			poolArgs = { PoolOp::MaxPool, 4, 4, 1, 1 };
 			runGpuPool(inShape, poolArgs);
 			std::cout << "\n\n ... Done!\n";
 			break;

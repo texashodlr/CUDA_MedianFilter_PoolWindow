@@ -624,17 +624,17 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 
 		//Host Code to populate the vectors with random values
 		srand(time(NULL));
-		std::cout << "Matrix Begin: [ ";
+		//std::cout << "Matrix Begin: [ ";
 		for (uint32_t r = 0; r < inShape.height; ++r) {
 			for (uint32_t c = 0; c < inShape.width; ++c) {
 				float randomValue = static_cast<float>(rand()) / RAND_MAX;
 				h_inMatrix[r * inShape.width + c] = randomValue;
 				h_inMatrix_cpu[r * inShape.width + c] = randomValue;
-				std::cout << randomValue << ", ";
+				//std::cout << randomValue << ", ";
 			}
-			std::cout << "\n ";
+		//	std::cout << "\n ";
 		}
-		std::cout << "]... \n";
+	//	std::cout << "]... \n";
 		std::cout << "Set Tensors to stun !!\n";
 
 		//Now copying the input matrices M and N from H to D (safely)//
@@ -658,15 +658,16 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 		//size_t sharedMemSize = windowSize * sizeof(uint8_t);
 
 		//Diagnostics just to see memory consumption//
-		size_t freeMem, totalMem;
-		cudaMemGetInfo(&freeMem, &totalMem);
-		printf("Before Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
+		//size_t freeMem, totalMem;
+		//cudaMemGetInfo(&freeMem, &totalMem);
+		//printf("Before Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
 
-		poolLayer_gpu_shared << <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
+		//poolLayer_gpu_shared << <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
 		poolLayer_cpu(h_inMatrix_cpu, inShape, h_outMatrix_cpu, outShape, poolArgs);
+		poolLayer_gpu<< <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
 
-		cudaMemGetInfo(&freeMem, &totalMem);
-		printf("After Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
+		//cudaMemGetInfo(&freeMem, &totalMem);
+		//printf("After Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
 
 		//Device sync safety//
 		err = cudaDeviceSynchronize();
@@ -679,30 +680,29 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 
 		//Device image to host image copy//
 		cudaMemcpy(h_outMatrix, d_outMatrix, outMatrixSize, cudaMemcpyDeviceToHost);
-
-		//Modified CPU version//
-		//Printing the matrix for validation//
-		std::cout << "Printing CPU Output Matrix!\n";
-		std::cout << "Matrix Begin: \n[ ";
-		for (uint32_t r = 0; r < outShape.height; ++r) {
-			for (uint32_t c = 0; c < outShape.width; ++c) {
-				float tmp_cpu = h_outMatrix_cpu[r * outShape.width + c];
-				std::cout << tmp_cpu << ", ";
-			}
-			std::cout << "\n ";
-		}
-		std::cout << "]... \n\n";
-
-		std::cout << "Printing GPU Output Matrix!\n";
-		std::cout << "Matrix Begin: \n[ ";
+		int mat_error = 0;
 		for (uint32_t r = 0; r < outShape.height; ++r) {
 			for (uint32_t c = 0; c < outShape.width; ++c) {
 				float tmp_gpu = h_outMatrix[r * outShape.width + c];
-				std::cout << tmp_gpu << ", ";
+				float tmp_cpu = h_outMatrix_cpu[r * outShape.width + c];
+				if (tmp_gpu != tmp_cpu) {
+
+					//std::cout << "Error at R: " << r << "| C: " << c << ", ";
+					//std::cout << "CPU: " << tmp_cpu << "| GPU: " << tmp_gpu << ", ";
+					mat_error++;
+				}
+				//else { std::cout << tmp_gpu << ", "; }
 			}
-			std::cout << "\n ";
+			//std::cout << "\n ";
 		}
-		std::cout << "]... \n";
+		//std::cout << "]... \n";
+
+		if (mat_error != 0) {
+			printf("You've got %d\n", mat_error);
+		}
+		else {
+			printf("There were no issues errors with your GPU matrix!\n");
+		}
 
 		cudaFree(d_inMatrix);
 		cudaFree(d_outMatrix);
@@ -840,12 +840,12 @@ void poolLayer_gpu_shared(float* input, TensorShape inShape,
 		uint32_t poolH = args.poolH;
 		uint32_t poolW = args.poolW;
 
-		uint32_t inRow = outRow * strideH;
-		uint32_t inCol = outCol * strideW;
+		//uint32_t inRow = outRow * strideH;
+		//uint32_t inCol = outCol * strideW;
 		
 		__shared__ float tile[(TILE_SIZE + POOL_SIZE - 1)*(TILE_SIZE + POOL_SIZE - 1)];
 
-		uint32_t sharedTileWidth = (TILE_SIZE + POOL_SIZE - 1);
+		//uint32_t sharedTileWidth = (TILE_SIZE + POOL_SIZE - 1);
 		uint32_t sharedRow = threadIdx.y * strideH;
 		uint32_t sharedCol = threadIdx.x * strideW;
 		uint32_t poolTile = poolH * poolW; //16
@@ -859,12 +859,12 @@ void poolLayer_gpu_shared(float* input, TensorShape inShape,
 				uint32_t loadCol = sharedCol + c;
 				uint32_t sharedTileOffset = (threadIdx.y * poolTileRow + threadIdx.x * poolTile); // Does have redudant memory values // 
 				uint32_t sharedIdx = (loadRow * (poolW)+loadCol) + sharedTileOffset;
-				uint32_t globalIdx = loadRow * inShape.width + loadCol;
-				printf("sharedIdx: %u | globalIdx: %u | LocalRow: %u | LocalCol: %u | globalRow: %u | globalCol: %u | Global Value: %f\n", sharedIdx, globalIdx, r, c, sharedRow, sharedCol, input[loadRow * inShape.width + loadCol]);
+				//uint32_t globalIdx = loadRow * inShape.width + loadCol;
+				//printf("sharedIdx: %u | globalIdx: %u | LocalRow: %u | LocalCol: %u | globalRow: %u | globalCol: %u | Global Value: %f\n", sharedIdx, globalIdx, r, c, sharedRow, sharedCol, input[loadRow * inShape.width + loadCol]);
 				if(loadRow < inShape.height && loadCol < inShape.width){ tile[sharedIdx] = input[loadRow * inShape.width + loadCol]; }
 				else {
 					//For Max only//
-					printf("!OOB TILE!  sharedIdx: %u | globalIdx: %u | LocalRow: %u | LocalCol: %u | globalRow: %u | globalCol: %u | Global Value: %f\n", sharedIdx, globalIdx, r, c, sharedRow, sharedCol, input[loadRow * inShape.width + loadCol]);
+					//printf("!OOB TILE!  sharedIdx: %u | globalIdx: %u | LocalRow: %u | LocalCol: %u | globalRow: %u | globalCol: %u | Global Value: %f\n", sharedIdx, globalIdx, r, c, sharedRow, sharedCol, input[loadRow * inShape.width + loadCol]);
 					tile[loadRow * poolW + loadCol] = 0;
 				}
 			}

@@ -418,23 +418,31 @@ int runCpuPool (TensorShape inShape, PoolLayerArgs poolArgs) {
 
 	//Populating the inshapeHxinshapeW matrix//
 	srand(time(NULL));
-	std::cout << "Matrix Begin: [ ";
+	//std::cout << "Matrix Begin: [ ";
 	for (uint32_t r = 0; r < inShape.height; ++r) {
 		for (uint32_t c = 0; c < inShape.width; ++c) {
 			float randomValue = static_cast<float>(rand())/ RAND_MAX;
 			inMatrix[r * inShape.width + c] = randomValue;
-			std::cout << randomValue << ", ";
+			//std::cout << randomValue << ", ";
 		}
-		std::cout << "\n ";
+		//std::cout << "\n ";
 	}
-	std::cout << "]... ";
+	//std::cout << "]... ";
 	std::cout << "Set Tensors to stun !!";
 
 
 	//	STUDENT: call pool function
+
+	auto start = std::chrono::high_resolution_clock::now();
 	poolLayer_cpu(inMatrix, inShape, outMatrix, outShape, poolArgs);
+	auto end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = end - start;
+	std::cout << "CPU Kernel execution time: " << elapsed.count() << " seconds\n";
+
 
 	//Printing the matrix for validation//
+	/*
+	
 	std::cout << "Printing Output Matrix!\n";
 	std::cout << "Matrix Begin: [ ";
 	for (uint32_t r = 0; r < outShape.height; ++r) {
@@ -445,6 +453,8 @@ int runCpuPool (TensorShape inShape, PoolLayerArgs poolArgs) {
 		std::cout << "\n ";
 	}
 	std::cout << "]... ";
+
+	*/
 
 	free(inMatrix);
 	free(outMatrix);
