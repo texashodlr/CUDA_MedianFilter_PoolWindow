@@ -129,13 +129,9 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 	int windowSize = (TILE_SIZE + args.filterH - 1) * (TILE_SIZE + args.filterW - 1) * h_imgDim.channels;
 	size_t sharedMemSize = windowSize * sizeof(uint8_t);
 
-	//Diagnostics just to see memory consumption//
-	size_t freeMem, totalMem;
-	cudaMemGetInfo(&freeMem, &totalMem);
-	printf("Before Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
-
-
 	//Switch statement to select the various filter options//
+	/*
+	
 	int choice;
 	std::cout << "Which GPU Median Filter should we run?\n";
 	std::cout << "  1 - Naive Global Memory GPU Median Filter\n";
@@ -193,15 +189,19 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 				h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
 			std::cout << "\n\n ... Done!\n";
 			break;
-		
+
 		default:
 			std::cout << "Hmm ... Devious, you are!\n";
 			std::cout << " Choose correctly, you must.\n";
 			break;
 	}
+	
+	*/
 
-	cudaMemGetInfo(&freeMem, &totalMem);
-	printf("After Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
+	std::cout << "Running Quick Select Global Memory GPU Median Filter \n\n";
+	medianFilter_gpu6 << <gridSize, blockSize, sharedMemSize >> > (d_imgData, d_outData,
+		h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
+	std::cout << "\n\n ... Done!\n";
 
 	//Device sync safety//
 	err = cudaDeviceSynchronize();
@@ -657,17 +657,12 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 		//int windowSize = (TILE_SIZE + args.filterH - 1) * (TILE_SIZE + args.filterW - 1) * h_imgDim.channels;
 		//size_t sharedMemSize = windowSize * sizeof(uint8_t);
 
-		//Diagnostics just to see memory consumption//
-		//size_t freeMem, totalMem;
-		//cudaMemGetInfo(&freeMem, &totalMem);
-		//printf("Before Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
-
-		//poolLayer_gpu_shared << <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
+		//Calling CPU and GPU with the same matrices for verification//
+		
 		poolLayer_cpu(h_inMatrix_cpu, inShape, h_outMatrix_cpu, outShape, poolArgs);
 		poolLayer_gpu<< <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
+		//poolLayer_gpu_shared << <gridSize, blockSize >> > (d_inMatrix, inShape, d_outMatrix, outShape, poolArgs);
 
-		//cudaMemGetInfo(&freeMem, &totalMem);
-		//printf("After Kernel Launch: Free memory: %lu bytes | Total memory: %lu bytes\n", freeMem, totalMem);
 
 		//Device sync safety//
 		err = cudaDeviceSynchronize();
@@ -678,7 +673,7 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 			return -1;
 		}
 
-		//Device image to host image copy//
+		//CPU v GPU matrix verification check//
 		cudaMemcpy(h_outMatrix, d_outMatrix, outMatrixSize, cudaMemcpyDeviceToHost);
 		int mat_error = 0;
 		for (uint32_t r = 0; r < outShape.height; ++r) {
@@ -686,17 +681,10 @@ int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 				float tmp_gpu = h_outMatrix[r * outShape.width + c];
 				float tmp_cpu = h_outMatrix_cpu[r * outShape.width + c];
 				if (tmp_gpu != tmp_cpu) {
-
-					//std::cout << "Error at R: " << r << "| C: " << c << ", ";
-					//std::cout << "CPU: " << tmp_cpu << "| GPU: " << tmp_gpu << ", ";
 					mat_error++;
 				}
-				//else { std::cout << tmp_gpu << ", "; }
 			}
-			//std::cout << "\n ";
 		}
-		//std::cout << "]... \n";
-
 		if (mat_error != 0) {
 			printf("You've got %d\n", mat_error);
 		}

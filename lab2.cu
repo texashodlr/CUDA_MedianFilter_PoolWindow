@@ -82,8 +82,8 @@ int main(int argc, char** argv) {
 		case 7:
 			std::cout << "Running Median Filter on GPU! \n\n";
 			filArgs = { 4, 4 };
-			runGpuMedianFilter("./resources/lena512color.tiff.bytes",
-				"./resources/lena512color_fil.bytes", filArgs);
+			runGpuMedianFilter("./resources/file22.jpg.bytes",
+				"./resources/file22_fil.bytes", filArgs);
 			std::cout << "\n\n ... Done!\n";
 			break;
 			
