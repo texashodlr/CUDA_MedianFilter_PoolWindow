@@ -142,6 +142,7 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 	std::cout << "  2 - Insertion Sort Global Memory GPU Median Filter\n";
 	std::cout << "  3 - Quick Select Global Memory GPU Median Filter\n";
 	std::cout << "  4 - Insertion Sort Shared Memory GPU Median Filter\n";
+	std::cout << "  5 - Quick Select Shared Memory GPU Median Filter\n";
 
 	std::cin >> choice;
 
@@ -174,6 +175,13 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 		case 4:
 			std::cout << "Running Insertion Sort Shared Memory GPU Median Filter \n\n";
 			medianFilter_gpu4 << <gridSize, blockSize, sharedMemSize >> > (d_imgData, d_outData,
+				h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
+			std::cout << "\n\n ... Done!\n";
+			break;
+
+		case 5:
+			std::cout << "Running Quick Select Shared Memory GPU Median Filter \n\n";
+			medianFilter_gpu5 << <gridSize, blockSize, sharedMemSize >> > (d_imgData, d_outData,
 				h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
 			std::cout << "\n\n ... Done!\n";
 			break;
@@ -231,7 +239,7 @@ void medianFilter_gpu(uint8_t* inPixels, uint8_t* outPixels,
 					}
 				}
 			}
-			__syncthreads();
+			//__syncthreads();
 			// Slow and Steady Swap Sort (Naive)! //
 			for (int i = 0; i < pixels - 1; ++i) {
 				for (int j = i + 1; j < pixels; ++j) {
@@ -242,7 +250,7 @@ void medianFilter_gpu(uint8_t* inPixels, uint8_t* outPixels,
 					}
 				}
 			}
-			__syncthreads();
+			//__syncthreads();
 			outPixels[(row * width + col) * channels + channel] = window[(pixels) / 2];
 		}
 	}
@@ -269,7 +277,7 @@ void medianFilter_gpu2(uint8_t* inPixels, uint8_t* outPixels,
 					}
 				}
 			}
-			__syncthreads();
+			//__syncthreads();
 			/* Insertion Sort */
 			for (int i = 1; i < pixels; i++) {
 				uint8_t tmp = window[i];
@@ -280,7 +288,7 @@ void medianFilter_gpu2(uint8_t* inPixels, uint8_t* outPixels,
 				}
 				window[j + 1] = tmp;
 			}
-			__syncthreads();
+			//__syncthreads();
 			outPixels[(row * width + col) * channels + channel] = window[(pixels) / 2];
 		}
 	}
@@ -348,10 +356,10 @@ void medianFilter_gpu3(uint8_t* inPixels, uint8_t* outPixels,
 					}
 				}
 			}
-			__syncthreads();
+			//__syncthreads();
 			int medianIndex = pixels / 2;
 			uint8_t medianValue = quickselect(window, 0, pixels - 1, medianIndex);
-			__syncthreads();
+			//__syncthreads();
 			outPixels[(row * width + col) * channels + channel] = medianValue;
 		}
 	}
@@ -440,6 +448,85 @@ void medianFilter_gpu4(uint8_t* inPixels, uint8_t* outPixels,
 				window[j + 1] = tmp;
 			}
 			outPixels[globalIndex + channel] = window[(pixels) / 2];
+		}
+	}
+}
+
+//Uber-fast shared memory?
+__global__
+void medianFilter_gpu5(uint8_t* inPixels, uint8_t* outPixels,
+	int height, int width, int channels, int filterH, int filterW) {
+
+	extern __shared__ uint8_t sharedMem[];
+
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+	int localCol = threadIdx.x;
+	int localRow = threadIdx.y;
+
+	int sharedW = blockDim.x + (2 * (filterW / 2));
+	int sharedH = blockDim.y + (2 * (filterH / 2));
+
+	int globalIndex = (row * width + col) * channels;
+
+	uint8_t* sharedPixels = sharedMem;
+
+	for (int channel = 0; channel < channels; ++channel) {
+		int sharedIdx = (((localRow + filterH / 2) * sharedW + (localCol + filterW / 2)) * channels + channel);
+
+		// Clamp to valid bounds
+		int loadRow = min(max(row, 0), height - 1);
+		int loadCol = min(max(col, 0), width - 1);
+		int loadIdx = (loadRow * width + loadCol) * channels + channel;
+
+		sharedPixels[sharedIdx] = inPixels[loadIdx];
+
+		if (localCol < (filterW / 2) && (localRow + filterH / 2) < sharedH) {
+			int leftCol = max(col - (filterW / 2), 0);
+			sharedPixels[((localRow + filterH / 2) * sharedW + localCol) * channels + channel] =
+				inPixels[(loadRow * width + leftCol) * channels + channel];
+		}
+		if (localCol >= blockDim.x - (filterW / 2) && (localRow + filterH / 2) < sharedH) {
+			int rightCol = min(col + (filterW / 2), width - 1);
+			sharedPixels[((localRow + filterH / 2) * sharedW + (localCol + filterW)) * channels + channel] =
+				inPixels[(loadRow * width + rightCol) * channels + channel];
+		}
+		if (localRow < (filterH / 2) && (localCol + filterW / 2) < sharedW) {
+			int topRow = max(row - (filterH / 2), 0);
+			sharedPixels[(localRow * sharedW + (localCol + filterW / 2)) * channels + channel] =
+				inPixels[(topRow * width + loadCol) * channels + channel];
+		}
+		if (localRow >= blockDim.y - (filterH / 2) && (localCol + filterW / 2) < sharedW) {
+			int bottomRow = min(row + (filterH / 2), height - 1);
+			sharedPixels[((localRow + filterH) * sharedW + (localCol + filterW / 2)) * channels + channel] =
+				inPixels[(bottomRow * width + loadCol) * channels + channel];
+		}
+
+	}
+
+	__syncthreads();
+
+	if (col < width && row < height) {
+		uint8_t window[81];
+		int pixels = 0;
+
+		for (int channel = 0; channel < channels; ++channel) {
+			pixels = 0;
+			for (int medianRow = -filterH / 2; medianRow <= filterH / 2; ++medianRow) {
+				int curRow = localRow + filterH / 2 + medianRow;
+				for (int medianCol = -filterW / 2; medianCol <= filterW / 2; ++medianCol) {
+					int curCol = localCol + filterW / 2 + medianCol;
+					if (curRow >= 0 && curRow < sharedH && curCol >= 0 && curCol < sharedW) {
+						window[pixels++] = sharedPixels[((curRow * sharedW + curCol) * channels + channel)];
+					}
+				}
+			}
+
+			int medianIndex = pixels / 2;
+			uint8_t medianValue = quickselect(window, 0, pixels - 1, medianIndex);
+			//__syncthreads();
+			outPixels[globalIndex + channel] = medianValue;
 		}
 	}
 }
