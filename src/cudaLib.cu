@@ -3,7 +3,7 @@
 #include "cudaLib.cuh"
 #include "cpuLib.h"
 #include "cuda_runtime_api.h"
-#define TILE_SIZE 16
+#define TILE_SIZE 32
 #define POOL_SIZE 16
 
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -143,6 +143,7 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 	std::cout << "  3 - Quick Select Global Memory GPU Median Filter\n";
 	std::cout << "  4 - Insertion Sort Shared Memory GPU Median Filter\n";
 	std::cout << "  5 - Quick Select Shared Memory GPU Median Filter\n";
+	std::cout << "  6 - Quick Select Global Memory GPU Median Filter\n";
 
 	std::cin >> choice;
 
@@ -182,6 +183,13 @@ int runGpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 		case 5:
 			std::cout << "Running Quick Select Shared Memory GPU Median Filter \n\n";
 			medianFilter_gpu5 << <gridSize, blockSize, sharedMemSize >> > (d_imgData, d_outData,
+				h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
+			std::cout << "\n\n ... Done!\n";
+			break;
+
+		case 6:
+			std::cout << "Running Quick Select Global Memory GPU Median Filter \n\n";
+			medianFilter_gpu6 << <gridSize, blockSize, sharedMemSize >> > (d_imgData, d_outData,
 				h_imgDim.height, h_imgDim.width, h_imgDim.channels, args.filterH, args.filterW);
 			std::cout << "\n\n ... Done!\n";
 			break;
@@ -334,6 +342,26 @@ __device__ uint8_t quickselect(uint8_t* arr, int left, int right, int k) {
 	}
 	return arr[left]; // Edge case
 }
+
+
+__device__ uint8_t sortPixels_gpu(uint8_t* arr, int left, int right, int k) {
+	while (left <= right) {
+		int pivotIndex = left + (right - left) / 2; // Use middle element as pivot
+		pivotIndex = partition(arr, left, right, pivotIndex);
+
+		if (pivotIndex == k) {
+			return arr[k]; // Found median
+		}
+		else if (pivotIndex < k) {
+			left = pivotIndex + 1;
+		}
+		else {
+			right = pivotIndex - 1;
+		}
+	}
+	return arr[left]; // Edge case
+}
+
 
 //QuickSelect SPEED
 __global__
@@ -524,12 +552,41 @@ void medianFilter_gpu5(uint8_t* inPixels, uint8_t* outPixels,
 			}
 
 			int medianIndex = pixels / 2;
-			uint8_t medianValue = quickselect(window, 0, pixels - 1, medianIndex);
+			uint8_t medianValue = sortPixels_gpu(window, 0, pixels - 1, medianIndex);
 			//__syncthreads();
 			outPixels[globalIndex + channel] = medianValue;
 		}
 	}
 }
+
+
+__global__
+void medianFilter_gpu6(uint8_t* inPixels, uint8_t* outPixels,
+	int height, int width, int channels, int filterH, int filterW) {
+
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if (col < width && row < height) {
+		uint8_t window[81]; // For filter max-width 9,9
+		for (int channel = 0; channel < channels; ++channel) {
+			int pixels = 0;
+			for (int medianRow = ((-filterH) / 2); medianRow <= (filterH / 2); ++medianRow) {
+				for (int medianCol = ((-filterW) / 2); medianCol <= (filterW / 2); ++medianCol) {
+					int curRow = row + medianRow;
+					int curCol = col + medianCol;
+					if (curRow >= 0 && curRow < height && curCol >= 0 && curCol < width) {
+						window[pixels++] = inPixels[(curRow * width + curCol) * channels + channel];
+					}
+				}
+			}
+			int medianIndex = pixels / 2;
+			uint8_t medianValue = sortPixels_gpu(window, 0, pixels - 1, medianIndex);
+			outPixels[(row * width + col) * channels + channel] = medianValue;
+		}
+	}
+}
+
 
 int runGpuPool(TensorShape inShape, PoolLayerArgs poolArgs) {
 

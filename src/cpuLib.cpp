@@ -287,7 +287,11 @@ int runCpuMedianFilter (std::string imgPath, std::string outPath, MedianFilterAr
 	std::cout << "Size = " << imgSize << "\n";
 	uint8_t * outData = (uint8_t *) malloc(imgSize * sizeof(uint8_t));
 
+	auto start = std::chrono::high_resolution_clock::now();
 	medianFilter_cpu(imgData, imgDim, outData, args);
+	auto end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = end - start;
+	std::cout << "CPU Kernel execution time: " << elapsed.count() << " seconds\n";
 
 	writeBytesImage(outPath, imgDim, outData);
 	return 0;

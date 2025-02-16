@@ -126,6 +126,9 @@
 	extern __global__ void medianFilter_gpu5(uint8_t* inPixels, uint8_t* outPixels,
 		int height, int width, int channels, int filterH, int filterW);
 
+	extern __global__ void medianFilter_gpu6(uint8_t* inPixels, uint8_t* outPixels,
+		int height, int width, int channels, int filterH, int filterW);
+
 	/**
 	 * @brief GPU kernel to sort a given array
 	 * 
@@ -135,7 +138,7 @@
 	 *								pointed to by array is organized
 	 * @return int 
 	 */
-	extern int sortPixels_gpu (uint8_t * array, dim3 arrayDim);
+	extern __device__ uint8_t sortPixels_gpu (uint8_t* arr, int left, int right, int k);
 
 	/**
 	 * @brief CPU entrypoint for GPU based pool operation
